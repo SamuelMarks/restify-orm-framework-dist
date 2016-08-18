@@ -48,6 +48,8 @@ function strapFramework(kwargs) {
     Object.keys(kwargs.models_and_routes).map(function (entity) {
         if (kwargs.models_and_routes[entity].routes)
             Object.keys(kwargs.models_and_routes[entity].routes).map(function (route) { return kwargs.models_and_routes[entity].routes[route](app, kwargs.root + "/" + entity); });
+        if (kwargs.models_and_routes[entity].route)
+            Object.keys(kwargs.models_and_routes[entity].route).map(function (route) { return kwargs.models_and_routes[entity].route[route](app, kwargs.root + "/" + entity); });
         if (!kwargs.skip_db && kwargs.models_and_routes[entity].models)
             Object.keys(kwargs.models_and_routes[entity].models).map(tryTblInit(entity));
     });
