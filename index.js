@@ -18,7 +18,7 @@ function strapFramework(kwargs) {
     if (kwargs.use_redis === undefined)
         kwargs.use_redis = false;
     if (kwargs.createSampleData === undefined)
-        kwargs.createSampleData = !process.env.NO_SAMPLE_DATA;
+        kwargs.createSampleData = !process.env['NO_SAMPLE_DATA'];
     var app = restify.createServer({ name: kwargs.app_name });
     app.use(restify.queryParser());
     app.use(restify.bodyParser());
@@ -34,7 +34,7 @@ function strapFramework(kwargs) {
         }));
     ['/', '/version', '/api', '/api/version'].map(function (route_path) { return app.get(route_path, function (req, res, next) {
         res.json({ version: kwargs.package_.version });
-        next();
+        return next();
     }); });
     function tryTblInit(entity) {
         return function (model) {
@@ -54,7 +54,7 @@ function strapFramework(kwargs) {
             Object.keys(kwargs.models_and_routes[entity].models).map(tryTblInit(entity));
     });
     if (kwargs.use_redis) {
-        kwargs.redis_cursors.redis = redis_1.createClient(process.env.REDIS_URL);
+        kwargs.redis_cursors.redis = redis_1.createClient(process.env['REDIS_URL']);
         kwargs.redis_cursors.redis.on('error', function (err) {
             kwargs.logger.error("Redis::error event -\n            " + kwargs.redis_cursors.redis['host'] + ":" + kwargs.redis_cursors.redis['port'] + "s- " + err);
             kwargs.logger.error(err);
@@ -62,7 +62,7 @@ function strapFramework(kwargs) {
     }
     if (kwargs.skip_db)
         if (kwargs.start_app)
-            app.listen(process.env.PORT || 3000, function () {
+            app.listen(process.env['PORT'] || 3000, function () {
                 kwargs.logger.info('%s listening at %s', app.name, app.url);
                 return kwargs.callback ? kwargs.callback(null, app, Object.freeze([]), Object.freeze([])) : null;
             });
@@ -78,7 +78,7 @@ function strapFramework(kwargs) {
         kwargs.logger.info('ORM initialised with collections:', Object.keys(kwargs.collections));
         kwargs._cache['collections'] = kwargs.collections;
         if (kwargs.start_app)
-            app.listen(process.env.PORT || 3000, function () {
+            app.listen(process.env['PORT'] || 3000, function () {
                 kwargs.logger.info('%s listening at %s', app.name, app.url);
                 if (kwargs.createSampleData && kwargs.sampleDataToCreate)
                     async.series((kwargs.sampleDataToCreate)(new kwargs.SampleData(app.url)), function (err, results) {
@@ -93,3 +93,14 @@ function strapFramework(kwargs) {
     });
 }
 exports.strapFramework = strapFramework;
+function add_to_body_mw() {
+    var updates = [];
+    for (var _i = 0; _i < arguments.length; _i++) {
+        updates[_i - 0] = arguments[_i];
+    }
+    return function (req, res, next) {
+        req.body && updates.map(function (pair) { return req.body[pair[0]] = updates[pair[1]]; });
+        return next();
+    };
+}
+exports.add_to_body_mw = add_to_body_mw;
