@@ -1,11 +1,12 @@
 "use strict";
-var restify = require('restify');
-var Waterline = require('waterline');
-var waterline_1 = require('waterline');
-var async = require('async');
-var bunyan_1 = require('bunyan');
-var restify_errors_1 = require('restify-errors');
-var redis_1 = require('redis');
+Object.defineProperty(exports, "__esModule", { value: true });
+var restify = require("restify");
+var Waterline = require("waterline");
+var waterline_1 = require("waterline");
+var async = require("async");
+var bunyan_1 = require("bunyan");
+var restify_errors_1 = require("restify-errors");
+var redis_1 = require("redis");
 function strapFramework(kwargs) {
     if (kwargs.root === undefined)
         kwargs.root = '/api';
@@ -64,7 +65,9 @@ function strapFramework(kwargs) {
         if (kwargs.start_app)
             app.listen(process.env['PORT'] || 3000, function () {
                 kwargs.logger.info('%s listening at %s', app.name, app.url);
-                return kwargs.callback ? kwargs.callback(null, app, Object.freeze([]), Object.freeze([])) : null;
+                return kwargs.callback ?
+                    kwargs.callback(null, app, Object.freeze([]), Object.freeze([]))
+                    : null;
             });
         else if (kwargs.callback)
             return kwargs.callback(null, app, Object.freeze([]), Object.freeze([]));
@@ -79,9 +82,9 @@ function strapFramework(kwargs) {
         kwargs._cache['collections'] = kwargs.collections;
         if (kwargs.start_app)
             app.listen(process.env['PORT'] || 3000, function () {
-                kwargs.logger.info('%s listening at %s', app.name, app.url);
+                kwargs.logger.info('%s listening from %s', app.name, app.url);
                 if (kwargs.createSampleData && kwargs.sampleDataToCreate)
-                    async.series((kwargs.sampleDataToCreate)(new kwargs.SampleData(app.url)), function (err, results) {
+                    async.series((kwargs.sampleDataToCreate)(new kwargs.SampleData(app.url, ontology.connections, kwargs.collections)), function (err, results) {
                         return err ? console.error(err) : console.info(results);
                     });
                 if (kwargs.callback)
@@ -96,7 +99,7 @@ exports.strapFramework = strapFramework;
 function add_to_body_mw() {
     var updates = [];
     for (var _i = 0; _i < arguments.length; _i++) {
-        updates[_i - 0] = arguments[_i];
+        updates[_i] = arguments[_i];
     }
     return function (req, res, next) {
         req.body && updates.map(function (pair) { return req.body[pair[0]] = updates[pair[1]]; });
