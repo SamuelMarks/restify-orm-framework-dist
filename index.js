@@ -7,6 +7,7 @@ var async = require("async");
 var bunyan_1 = require("bunyan");
 var restify_errors_1 = require("restify-errors");
 var redis_1 = require("redis");
+var util_1 = require("util");
 function strapFramework(kwargs) {
     if (kwargs.root === undefined)
         kwargs.root = '/api';
@@ -76,6 +77,13 @@ function strapFramework(kwargs) {
             if (kwargs.callback)
                 return kwargs.callback(err);
             throw err;
+        }
+        else if (util_1.isNullOrUndefined(ontology) || !ontology.connections || !ontology.collections) {
+            console.error('ontology =', ontology);
+            var err_1 = new TypeError(util_1.format('Expected ontology with connections & collections, got: %j', ontology));
+            if (kwargs.callback)
+                return kwargs.callback(err_1);
+            throw err_1;
         }
         kwargs.collections = (ontology.collections);
         kwargs.logger.info('ORM initialised with collections:', Object.keys(kwargs.collections));
