@@ -8,7 +8,7 @@ var bunyan_1 = require("bunyan");
 var restify_errors_1 = require("restify-errors");
 var redis_1 = require("redis");
 var util_1 = require("util");
-function strapFramework(kwargs) {
+exports.strapFramework = function (kwargs) {
     if (kwargs.root === undefined)
         kwargs.root = '/api';
     if (kwargs.app_logging === undefined)
@@ -38,14 +38,12 @@ function strapFramework(kwargs) {
         res.json({ version: kwargs.package_.version });
         return next();
     }); });
-    function tryTblInit(entity) {
-        return function (model) {
-            kwargs.models_and_routes[entity].models
-                && (kwargs.models_and_routes[entity].models[model].identity
-                    || kwargs.models_and_routes[entity].models[model].tableName) ?
-                waterline.loadCollection(waterline_1.Collection.extend(kwargs.models_and_routes[entity].models[model])) : kwargs.logger.warn("Not initialising: " + entity + "." + model);
-        };
-    }
+    var tryTblInit = function (entity) { return function (model) {
+        return kwargs.models_and_routes[entity].models
+            && (kwargs.models_and_routes[entity].models[model].identity
+                || kwargs.models_and_routes[entity].models[model].tableName) ?
+            waterline.loadCollection(waterline_1.Collection.extend(kwargs.models_and_routes[entity].models[model])) : kwargs.logger.warn("Not initialising: " + entity + "." + model);
+    }; };
     var waterline = new Waterline();
     Object.keys(kwargs.models_and_routes).map(function (entity) {
         if (kwargs.models_and_routes[entity].routes)
@@ -80,20 +78,20 @@ function strapFramework(kwargs) {
         }
         else if (util_1.isNullOrUndefined(ontology) || !ontology.connections || !ontology.collections) {
             console.error('ontology =', ontology);
-            var err_1 = new TypeError(util_1.format('Expected ontology with connections & collections, got: %j', ontology));
+            var error = new TypeError('Expected ontology with connections & collections');
             if (kwargs.callback)
-                return kwargs.callback(err_1);
-            throw err_1;
+                return kwargs.callback(error);
+            throw error;
         }
-        kwargs.collections = (ontology.collections);
+        kwargs.collections = ontology.collections;
         kwargs.logger.info('ORM initialised with collections:', Object.keys(kwargs.collections));
         kwargs._cache['collections'] = kwargs.collections;
         if (kwargs.start_app)
             app.listen(process.env['PORT'] || 3000, function () {
                 kwargs.logger.info('%s listening from %s', app.name, app.url);
                 if (kwargs.createSampleData && kwargs.sampleDataToCreate)
-                    async.series((kwargs.sampleDataToCreate)(new kwargs.SampleData(app.url, ontology.connections, kwargs.collections)), function (err, results) {
-                        return err ? console.error(err) : console.info(results);
+                    async.series((kwargs.sampleDataToCreate)(new kwargs.SampleData(app.url, ontology.connections, kwargs.collections)), function (e, results) {
+                        return e ? console.error(e) : console.info(results);
                     });
                 if (kwargs.callback)
                     return kwargs.callback(null, app, ontology.connections, kwargs.collections);
@@ -102,9 +100,8 @@ function strapFramework(kwargs) {
         else if (kwargs.callback)
             return kwargs.callback(null, app, ontology.connections, kwargs.collections);
     });
-}
-exports.strapFramework = strapFramework;
-function add_to_body_mw() {
+};
+exports.add_to_body_mw = function () {
     var updates = [];
     for (var _i = 0; _i < arguments.length; _i++) {
         updates[_i] = arguments[_i];
@@ -113,5 +110,4 @@ function add_to_body_mw() {
         req.body && updates.map(function (pair) { return req.body[pair[0]] = updates[pair[1]]; });
         return next();
     };
-}
-exports.add_to_body_mw = add_to_body_mw;
+};
