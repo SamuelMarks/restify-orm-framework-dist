@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var restify = require("restify");
 var Waterline = require("waterline");
 var waterline_1 = require("waterline");
-var async = require("async");
 var bunyan_1 = require("bunyan");
 var restify_errors_1 = require("restify-errors");
 var redis_1 = require("redis");
@@ -71,13 +70,13 @@ exports.strapFramework = function (kwargs) {
         else if (kwargs.callback)
             return kwargs.callback(null, app, Object.freeze([]), Object.freeze([]));
     waterline.initialize(kwargs.waterline_config, function (err, ontology) {
-        if (err !== null) {
+        if (err != null) {
             if (kwargs.callback)
                 return kwargs.callback(err);
             throw err;
         }
         else if (util_1.isNullOrUndefined(ontology) || !ontology.connections || !ontology.collections) {
-            console.error('ontology =', ontology);
+            kwargs.logger.error('ontology =', ontology);
             var error = new TypeError('Expected ontology with connections & collections');
             if (kwargs.callback)
                 return kwargs.callback(error);
@@ -89,11 +88,9 @@ exports.strapFramework = function (kwargs) {
         if (kwargs.start_app)
             app.listen(process.env['PORT'] || 3000, function () {
                 kwargs.logger.info('%s listening from %s', app.name, app.url);
-                if (kwargs.createSampleData && kwargs.sampleDataToCreate)
-                    async.series((kwargs.sampleDataToCreate)(new kwargs.SampleData(app.url, ontology.connections, kwargs.collections)), function (e, results) {
-                        return e ? console.error(e) : console.info(results);
-                    });
-                if (kwargs.callback)
+                if (kwargs.onServerStart)
+                    kwargs.onServerStart(app.url, ontology.connections, kwargs.collections, app, kwargs.callback == null ? function () { } : kwargs.callback);
+                else if (kwargs.callback)
                     return kwargs.callback(null, app, ontology.connections, kwargs.collections);
                 return;
             });
