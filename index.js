@@ -18,8 +18,6 @@ exports.strapFramework = function (kwargs) {
         kwargs.skip_db = true;
     if (kwargs.use_redis === undefined)
         kwargs.use_redis = false;
-    if (kwargs.createSampleData === undefined)
-        kwargs.createSampleData = !process.env['NO_SAMPLE_DATA'];
     var app = restify.createServer({ name: kwargs.app_name });
     app.use(restify.queryParser());
     app.use(restify.bodyParser());
