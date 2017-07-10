@@ -85,35 +85,17 @@ exports.strapFramework = (kwargs) => {
         kwargs.collections = ontology.collections;
         kwargs.logger.info('ORM initialised with collections:', Object.keys(kwargs.collections));
         kwargs._cache['collections'] = kwargs.collections;
-        const handleEnd = () => {
-            if (kwargs.start_app)
-                app.listen(process.env['PORT'] || 3000, () => {
-                    kwargs.logger.info('%s listening from %s', app.name, app.url);
-                    if (kwargs.onServerStart != null)
-                        kwargs.onServerStart(app.url, ontology.datastores, kwargs.collections, app, kwargs.callback == null ? () => { } : kwargs.callback);
-                    else if (kwargs.callback != null)
-                        return kwargs.callback(null, app, ontology.datastores, kwargs.collections);
-                    return;
-                });
-            else if (kwargs.callback != null)
-                return kwargs.callback(null, app, ontology.datastores, kwargs.collections);
-        };
-        if (kwargs.onDbInit) {
-            if (kwargs.onDbInitCb == null)
-                kwargs.onDbInitCb = (error, datastores, collections, finale) => {
-                    if (error != null) {
-                        if (kwargs.callback != null)
-                            return kwargs.callback(error);
-                        throw error;
-                    }
-                    ontology.datastores = datastores;
-                    ontology.collections = collections;
-                    return finale();
-                };
-            return kwargs.onDbInit(app, ontology.datastores, kwargs.collections, handleEnd, kwargs.onDbInitCb);
-        }
-        else
-            return handleEnd();
+        if (kwargs.start_app)
+            app.listen(process.env['PORT'] || 3000, () => {
+                kwargs.logger.info('%s listening from %s', app.name, app.url);
+                if (kwargs.onServerStart != null)
+                    kwargs.onServerStart(app.url, ontology.datastores, kwargs.collections, app, kwargs.callback == null ? () => { } : kwargs.callback);
+                else if (kwargs.callback != null)
+                    return kwargs.callback(null, app, ontology.datastores, kwargs.collections);
+                return;
+            });
+        else if (kwargs.callback != null)
+            return kwargs.callback(null, app, ontology.datastores, kwargs.collections);
     });
 };
 exports.add_to_body_mw = (...updates) => (req, res, next) => {
