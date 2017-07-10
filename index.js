@@ -41,7 +41,7 @@ exports.strapFramework = (kwargs) => {
     const tryTblInit = entity => model => kwargs.models_and_routes[entity].models
         && (kwargs.models_and_routes[entity].models[model].identity
             || kwargs.models_and_routes[entity].models[model].tableName) ?
-        waterline_obj.loadCollection(waterline_1.Collection.extend(kwargs.models_and_routes[entity].models[model])) : kwargs.logger.warn(`Not initialising: ${entity}.${model}`);
+        waterline_obj['registerModel'](waterline_1.Collection.extend(kwargs.models_and_routes[entity].models[model])) : kwargs.logger.warn(`Not initialising: ${entity}.${model}`);
     Object.keys(kwargs.models_and_routes).map(entity => {
         if (kwargs.models_and_routes[entity].routes)
             Object.keys(kwargs.models_and_routes[entity].routes).map(route => kwargs.models_and_routes[entity].routes[route](app, `${kwargs.root}/${entity}`));
