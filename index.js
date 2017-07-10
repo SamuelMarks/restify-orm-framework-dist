@@ -27,7 +27,7 @@ exports.strapFramework = (kwargs) => {
     app.use(restify_plugins_1.bodyParser());
     app.on('WLError', (req, res, err, next) => next(new custom_restify_errors_1.WaterlineError(err)));
     if (kwargs.app_logging)
-        app.on('after', restify.auditLogger({
+        app.on('after', restify_plugins_1.auditLogger({
             log: bunyan_1.createLogger({
                 name: 'audit',
                 stream: process.stdout
