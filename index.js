@@ -8,6 +8,7 @@ const waterline_1 = require("waterline");
 const bunyan_1 = require("bunyan");
 const custom_restify_errors_1 = require("custom-restify-errors");
 const Redis = require("ioredis");
+const nodejs_utils_1 = require("nodejs-utils");
 exports.strapFramework = (kwargs) => {
     if (kwargs.root == null)
         kwargs.root = '/api';
@@ -45,6 +46,8 @@ exports.strapFramework = (kwargs) => {
     const routes = new Set();
     const models = new Set();
     const norm = new Set();
+    if (!(kwargs.models_and_routes instanceof Map))
+        kwargs.models_and_routes = nodejs_utils_1.model_route_to_map(kwargs.models_and_routes);
     for (const [fname, program] of kwargs.models_and_routes)
         if (program != null)
             if (fname.indexOf('model') > -1 && !kwargs.skip_db)
