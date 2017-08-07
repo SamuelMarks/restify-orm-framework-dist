@@ -1,11 +1,9 @@
-tslint.json
 .idea/
 typings/
 *.js
 *.map
 logs/
 *.log
-*.d.ts
 npm-debug.log*
 pids
 *.pid

@@ -14,15 +14,15 @@ exports.strapFramework = (kwargs) => {
         kwargs.root = '/api';
     if (kwargs.app_logging == null)
         kwargs.app_logging = true;
-    if (kwargs.start_app == null)
-        kwargs.start_app = true;
+    if (kwargs.skip_start_app == null)
+        kwargs.skip_start_app = false;
     if (kwargs.listen_port == null)
         kwargs.listen_port = typeof process.env['PORT'] === 'undefined' ? 3000 : ~~process.env['PORT'];
-    if (kwargs.skip_db == null)
-        kwargs.skip_db = true;
-    if (kwargs.use_redis == null)
-        kwargs.use_redis = false;
-    else if (kwargs.use_redis && kwargs.redis_config == null)
+    if (kwargs.skip_waterline == null)
+        kwargs.skip_waterline = true;
+    if (kwargs.skip_redis == null)
+        kwargs.skip_redis = true;
+    else if (kwargs.skip_redis && kwargs.redis_config == null)
         kwargs.redis_config = process.env['REDIS_URL'] == null ? { port: 6379 } : process.env['REDIS_URL'];
     const app = restify.createServer(Object.assign({ name: kwargs.app_name }, kwargs.createServerArgs || {}));
     app.use(restify_plugins_1.queryParser());
@@ -50,14 +50,14 @@ exports.strapFramework = (kwargs) => {
         kwargs.models_and_routes = nodejs_utils_1.model_route_to_map(kwargs.models_and_routes);
     for (const [fname, program] of kwargs.models_and_routes)
         if (program != null)
-            if (fname.indexOf('model') > -1 && !kwargs.skip_db)
+            if (fname.indexOf('model') > -1 && !kwargs.skip_waterline)
                 tryTblInit(program, models, norm);
             else
                 routes.add(Object.keys(program).map((route) => program[route](app, `${kwargs.root}/${path_1.dirname(fname)}`)) && path_1.dirname(fname));
     kwargs.logger.info('Registered routes:', Array.from(routes.keys()).join('; '), ';');
     kwargs.logger.warn('Failed registering models:', Array.from(norm.keys()).join('; '), ';');
     kwargs.logger.info('Registered models:', Array.from(models.keys()).join('; '), ';');
-    if (kwargs.use_redis) {
+    if (kwargs.skip_redis) {
         kwargs.redis_cursors.redis = new Redis(kwargs.redis_config);
         kwargs.redis_cursors.redis.on('error', err => {
             kwargs.logger.error(`Redis::error event -
@@ -65,8 +65,8 @@ exports.strapFramework = (kwargs) => {
             kwargs.logger.error(err);
         });
     }
-    if (kwargs.skip_db)
-        if (kwargs.start_app)
+    if (kwargs.skip_waterline)
+        if (kwargs.skip_start_app)
             app.listen(kwargs.listen_port, () => {
                 kwargs.logger.info('%s listening at %s', app.name, app.url);
                 return kwargs.callback == null ? null
@@ -91,7 +91,9 @@ exports.strapFramework = (kwargs) => {
         kwargs.collections = ontology.collections;
         kwargs.logger.info('ORM initialised with collections:', Object.keys(kwargs.collections), ';');
         kwargs._cache['collections'] = kwargs.collections;
-        if (kwargs.start_app)
+        if (kwargs.skip_start_app)
+            return kwargs.callback(null, app, ontology.connections, kwargs.collections);
+        else if (kwargs.callback != null)
             app.listen(process.env['PORT'] || 3000, () => {
                 kwargs.logger.info('%s listening from %s;', app.name, app.url);
                 if (kwargs.onServerStart != null)
@@ -100,8 +102,6 @@ exports.strapFramework = (kwargs) => {
                     return kwargs.callback(null, app, ontology.connections, kwargs.collections);
                 return;
             });
-        else if (kwargs.callback != null)
-            return kwargs.callback(null, app, ontology.connections, kwargs.collections);
     });
 };
 exports.add_to_body_mw = (...updates) => (req, res, next) => {
