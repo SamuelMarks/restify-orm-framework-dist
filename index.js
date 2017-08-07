@@ -9,6 +9,7 @@ const bunyan_1 = require("bunyan");
 const custom_restify_errors_1 = require("custom-restify-errors");
 const Redis = require("ioredis");
 const nodejs_utils_1 = require("nodejs-utils");
+const typeorm_1 = require("typeorm");
 exports.strapFramework = (kwargs) => {
     if (kwargs.root == null)
         kwargs.root = '/api';
@@ -20,6 +21,8 @@ exports.strapFramework = (kwargs) => {
         kwargs.listen_port = typeof process.env['PORT'] === 'undefined' ? 3000 : ~~process.env['PORT'];
     if (kwargs.skip_waterline == null)
         kwargs.skip_waterline = true;
+    if (kwargs.skip_typeorm == null)
+        kwargs.skip_typeorm = true;
     if (kwargs.skip_redis == null)
         kwargs.skip_redis = true;
     else if (kwargs.skip_redis && kwargs.redis_config == null)
@@ -40,24 +43,35 @@ exports.strapFramework = (kwargs) => {
         return next();
     }));
     const waterline_obj = new Waterline();
-    const tryTblInit = (program, models_set, norm_set) => Object.keys(program).forEach(entity => program[entity] != null && (program[entity].identity || program[entity].tableName) ?
-        models_set.add(entity) && waterline_obj.loadCollection(waterline_1.Collection.extend(program[entity]))
-        : norm_set.add(entity));
+    const tryTblInit = (program, models_set, norm_set, typeorm_set) => Object.keys(program).forEach(entity => {
+        if (program[entity] != null)
+            if (program[entity].identity || program[entity].tableName) {
+                models_set.add(entity);
+                waterline_obj.loadCollection(waterline_1.Collection.extend(program[entity]));
+            }
+            else if (typeof program[entity] === 'function'
+                && program[entity].toString().indexOf('class') > -1
+                && entity !== 'AccessToken')
+                typeorm_set.add(program[entity]);
+            else
+                norm_set.add(entity);
+    });
     const routes = new Set();
     const models = new Set();
     const norm = new Set();
+    const typeorm = new Set();
     if (!(kwargs.models_and_routes instanceof Map))
         kwargs.models_and_routes = nodejs_utils_1.model_route_to_map(kwargs.models_and_routes);
     for (const [fname, program] of kwargs.models_and_routes)
         if (program != null)
-            if (fname.indexOf('model') > -1 && !kwargs.skip_waterline)
-                tryTblInit(program, models, norm);
+            if (fname.indexOf('model') > -1 && (!kwargs.skip_waterline || !kwargs.skip_typeorm))
+                tryTblInit(program, models, norm, typeorm);
             else
                 routes.add(Object.keys(program).map((route) => program[route](app, `${kwargs.root}/${path_1.dirname(fname)}`)) && path_1.dirname(fname));
     kwargs.logger.info('Registered routes:', Array.from(routes.keys()).join('; '), ';');
     kwargs.logger.warn('Failed registering models:', Array.from(norm.keys()).join('; '), ';');
     kwargs.logger.info('Registered models:', Array.from(models.keys()).join('; '), ';');
-    if (kwargs.skip_redis) {
+    if (!kwargs.skip_redis) {
         kwargs.redis_cursors.redis = new Redis(kwargs.redis_config);
         kwargs.redis_cursors.redis.on('error', err => {
             kwargs.logger.error(`Redis::error event -
@@ -65,8 +79,8 @@ exports.strapFramework = (kwargs) => {
             kwargs.logger.error(err);
         });
     }
-    if (kwargs.skip_waterline)
-        if (kwargs.skip_start_app)
+    if (kwargs.skip_waterline && kwargs.skip_typeorm)
+        if (!kwargs.skip_start_app)
             app.listen(kwargs.listen_port, () => {
                 kwargs.logger.info('%s listening at %s', app.name, app.url);
                 return kwargs.callback == null ? null
@@ -74,35 +88,48 @@ exports.strapFramework = (kwargs) => {
             });
         else if (kwargs.callback != null)
             return kwargs.callback(null, app, Object.freeze([]), Object.freeze([]));
-    waterline_obj.initialize(kwargs.waterline_config, (err, ontology) => {
-        if (err != null) {
-            if (kwargs.callback != null)
+        else
+            return;
+    const waterlineHandler = (connection) => {
+        waterline_obj.initialize(kwargs.waterline_config, (err, ontology) => {
+            if (err != null) {
+                if (kwargs.callback != null)
+                    return kwargs.callback(err);
+                throw err;
+            }
+            else if (ontology == null || ontology.connections == null || ontology.collections == null
+                || ontology.connections.length === 0 || ontology.collections.length === 0) {
+                kwargs.logger.error('ontology =', ontology, ';');
+                const error = new TypeError('Expected ontology with connections & collections');
+                if (kwargs.callback != null)
+                    return kwargs.callback(error);
+                throw error;
+            }
+            kwargs.collections = ontology.collections;
+            kwargs.logger.info('ORM initialised with collections:', Object.keys(kwargs.collections), ';');
+            kwargs._cache['collections'] = kwargs.collections;
+            if (kwargs.skip_start_app)
+                return kwargs.callback(null, app, ontology.connections, kwargs.collections, connection);
+            else if (kwargs.callback != null)
+                app.listen(process.env['PORT'] || 3000, () => {
+                    kwargs.logger.info('%s listening from %s;', app.name, app.url);
+                    if (kwargs.onServerStart != null)
+                        kwargs.onServerStart(app.url, ontology.connections, kwargs.collections, connection, app, kwargs.callback == null ? () => { } : kwargs.callback);
+                    else if (kwargs.callback != null)
+                        return kwargs.callback(null, app, ontology.connections, kwargs.collections, connection);
+                    return;
+                });
+        });
+    };
+    console.info('createConnection with:', Object.assign({ entities: Array.from(typeorm.values()) }, kwargs.typeorm_config), ';');
+    if (!kwargs.skip_typeorm)
+        return typeorm_1.createConnection(Object.assign({ entities: Array.from(typeorm.values()).map(entity => entity) }, kwargs.typeorm_config)).then(waterlineHandler).catch(err => {
+            if (kwargs.callback)
                 return kwargs.callback(err);
             throw err;
-        }
-        else if (ontology == null || ontology.connections == null || ontology.collections == null
-            || ontology.connections.length === 0 || ontology.collections.length === 0) {
-            kwargs.logger.error('ontology =', ontology, ';');
-            const error = new TypeError('Expected ontology with connections & collections');
-            if (kwargs.callback != null)
-                return kwargs.callback(error);
-            throw error;
-        }
-        kwargs.collections = ontology.collections;
-        kwargs.logger.info('ORM initialised with collections:', Object.keys(kwargs.collections), ';');
-        kwargs._cache['collections'] = kwargs.collections;
-        if (kwargs.skip_start_app)
-            return kwargs.callback(null, app, ontology.connections, kwargs.collections);
-        else if (kwargs.callback != null)
-            app.listen(process.env['PORT'] || 3000, () => {
-                kwargs.logger.info('%s listening from %s;', app.name, app.url);
-                if (kwargs.onServerStart != null)
-                    kwargs.onServerStart(app.url, ontology.connections, kwargs.collections, app, kwargs.callback == null ? () => { } : kwargs.callback);
-                else if (kwargs.callback != null)
-                    return kwargs.callback(null, app, ontology.connections, kwargs.collections);
-                return;
-            });
-    });
+        });
+    else
+        return waterlineHandler();
 };
 exports.add_to_body_mw = (...updates) => (req, res, next) => {
     req.body && updates.map(pair => req.body[pair[0]] = updates[pair[1]]);
