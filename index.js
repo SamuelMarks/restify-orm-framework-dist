@@ -10,6 +10,7 @@ const custom_restify_errors_1 = require("custom-restify-errors");
 const Redis = require("ioredis");
 const nodejs_utils_1 = require("nodejs-utils");
 const typeorm_1 = require("typeorm");
+require("reflect-metadata");
 exports.strapFramework = (kwargs) => {
     if (kwargs.root == null)
         kwargs.root = '/api';
@@ -43,7 +44,7 @@ exports.strapFramework = (kwargs) => {
         return next();
     }));
     const waterline_obj = new Waterline();
-    const tryTblInit = (program, models_set, norm_set, typeorm_set) => Object.keys(program).forEach(entity => {
+    const tryTblInit = (program, models_set, norm_set, typeorm_map) => Object.keys(program).forEach(entity => {
         if (program[entity] != null)
             if (program[entity].identity || program[entity].tableName) {
                 models_set.add(entity);
@@ -52,14 +53,14 @@ exports.strapFramework = (kwargs) => {
             else if (typeof program[entity] === 'function'
                 && program[entity].toString().indexOf('class') > -1
                 && entity !== 'AccessToken')
-                typeorm_set.add(program[entity]);
+                typeorm_map.set(entity, program[entity]);
             else
                 norm_set.add(entity);
     });
     const routes = new Set();
     const models = new Set();
     const norm = new Set();
-    const typeorm = new Set();
+    const typeorm = new Map();
     if (!(kwargs.models_and_routes instanceof Map))
         kwargs.models_and_routes = nodejs_utils_1.model_route_to_map(kwargs.models_and_routes);
     for (const [fname, program] of kwargs.models_and_routes)
@@ -90,23 +91,22 @@ exports.strapFramework = (kwargs) => {
             return kwargs.callback(null, app, Object.freeze([]), Object.freeze([]));
         else
             return;
+    const handleErr = err => {
+        if (kwargs.callback)
+            return kwargs.callback(err);
+        throw err;
+    };
     const waterlineHandler = (connection) => {
         waterline_obj.initialize(kwargs.waterline_config, (err, ontology) => {
-            if (err != null) {
-                if (kwargs.callback != null)
-                    return kwargs.callback(err);
-                throw err;
-            }
+            if (err != null)
+                return handleErr(err);
             else if (ontology == null || ontology.connections == null || ontology.collections == null
                 || ontology.connections.length === 0 || ontology.collections.length === 0) {
                 kwargs.logger.error('ontology =', ontology, ';');
-                const error = new TypeError('Expected ontology with connections & collections');
-                if (kwargs.callback != null)
-                    return kwargs.callback(error);
-                throw error;
+                return handleErr(new TypeError('Expected ontology with connections & collections'));
             }
             kwargs.collections = ontology.collections;
-            kwargs.logger.info('ORM initialised with collections:', Object.keys(kwargs.collections), ';');
+            kwargs.logger.info('Waterline initialised with collections:', Object.keys(kwargs.collections), ';');
             kwargs._cache['collections'] = kwargs.collections;
             if (kwargs.skip_start_app)
                 return kwargs.callback(null, app, ontology.connections, kwargs.collections, connection);
@@ -121,13 +121,17 @@ exports.strapFramework = (kwargs) => {
                 });
         });
     };
-    console.info('createConnection with:', Object.assign({ entities: Array.from(typeorm.values()) }, kwargs.typeorm_config), ';');
-    if (!kwargs.skip_typeorm)
-        return typeorm_1.createConnection(Object.assign({ entities: Array.from(typeorm.values()).map(entity => entity) }, kwargs.typeorm_config)).then(waterlineHandler).catch(err => {
-            if (kwargs.callback)
-                return kwargs.callback(err);
-            throw err;
-        });
+    if (!kwargs.skip_typeorm) {
+        kwargs.logger.info('TypeORM initialised with entities:', Array.from(typeorm.keys()), ';');
+        try {
+            return typeorm_1.createConnection(Object.assign({
+                entities: Array.from(typeorm.values())
+            }, kwargs.typeorm_config)).then(waterlineHandler).catch(handleErr);
+        }
+        catch (e) {
+            return handleErr(e);
+        }
+    }
     else
         return waterlineHandler();
 };
