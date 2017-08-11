@@ -29,28 +29,14 @@ const populateModels = (program, omit_models, norm_set, waterline_set, typeorm_m
     else
         norm_set.add(entity);
 });
-const handleStartApp = (kwargs, app, waterline_connections, waterline_collections, typeorm_connection, sequelize_connection) => {
-    const orms_out = Object.freeze({
-        sequelize: {
-            connection: sequelize_connection
-        },
-        typeorm: {
-            connection: typeorm_connection
-        },
-        waterline: {
-            connection: waterline_connections,
-            collections: kwargs.waterline_collections
-        }
+const handleStartApp = (kwargs, app, orms_out) => kwargs.skip_start_app ? kwargs.callback != null && kwargs.callback(null, app, orms_out)
+    : app.listen(kwargs.listen_port, () => {
+        kwargs.logger.info('%s listening at %s', app.name, app.url);
+        if (kwargs.onServerStart != null)
+            return kwargs.onServerStart(app.url, app, orms_out, kwargs.callback == null ? () => { } : kwargs.callback);
+        else if (kwargs.callback != null)
+            return kwargs.callback(null, app, orms_out);
     });
-    return kwargs.skip_start_app ? kwargs.callback != null && kwargs.callback(null, app, orms_out)
-        : app.listen(kwargs.listen_port, () => {
-            kwargs.logger.info('%s listening at %s', app.name, app.url);
-            if (kwargs.onServerStart != null)
-                return kwargs.onServerStart(app.url, app, orms_out, kwargs.callback == null ? () => { } : kwargs.callback);
-            else if (kwargs.callback != null)
-                return kwargs.callback(null, app, orms_out);
-        });
-};
 const waterlineHandler = (kwargs, app, waterline_set, callback) => {
     if (kwargs.skip_waterline)
         return callback(void 0);
@@ -65,19 +51,19 @@ const waterlineHandler = (kwargs, app, waterline_set, callback) => {
             return callback(new TypeError('Expected ontology with connections & waterline_collections'));
         }
         kwargs.waterline_collections = ontology.collections;
-        kwargs.logger.info('Waterline initialised with:', Object.keys(kwargs.waterline_collections), ';');
+        kwargs.logger.info('Waterline initialised with:\t', Object.keys(kwargs.waterline_collections), ';');
         kwargs._cache['waterline_collections'] = kwargs.waterline_collections;
-        return callback(null, { connections: ontology.connections, collections: kwargs.waterline_collections });
+        return callback(null, { connection: ontology.connections, collections: kwargs.waterline_collections });
     });
 };
 const typeormHandler = (kwargs, typeorm, callback) => {
     if (kwargs.skip_typeorm)
         return callback(void 0);
-    kwargs.logger.info('TypeORM initialising with:', Array.from(typeorm.keys()), ';');
+    kwargs.logger.info('TypeORM initialising with:\t', Array.from(typeorm.keys()), ';');
     try {
         return typeorm_1.createConnection(Object.assign({
             entities: Array.from(typeorm.values())
-        }, kwargs.typeorm_config)).then(connection => callback(null, connection)).catch(callback);
+        }, kwargs.typeorm_config)).then(connection => callback(null, { connection })).catch(callback);
     }
     catch (e) {
         return callback(e);
@@ -86,10 +72,10 @@ const typeormHandler = (kwargs, typeorm, callback) => {
 const sequelizeHandler = (kwargs, app, sequelize_map, callback) => {
     if (kwargs.skip_sequelize)
         return callback(void 0);
-    kwargs.logger.info('Sequelize initialising with:', Array.from(sequelize_map.keys()), ';');
+    kwargs.logger.info('Sequelize initialising with:\t', Array.from(sequelize_map.keys()), ';');
     const sequelize_obj = new sequelize.Sequelize(kwargs.sequelize_config);
     Array.from(sequelize_map.values()).forEach(e => e(sequelize_obj));
-    return callback(void 0, sequelize_obj);
+    return callback(void 0, { connection: sequelize_obj });
 };
 exports.tearDownWaterlineConnections = (connections, done) => connections ? async_1.parallel(Object.keys(connections).map(connection => connections[connection]._adapter.teardown), () => {
     Object.keys(connections).forEach(connection => {
@@ -149,8 +135,8 @@ exports.strapFramework = (kwargs) => {
                 populateModels(program, kwargs.omit_models || ['AccessToken'], norm, waterline_set, typeorm_map, sequelize_map);
             else
                 typeof program === 'object' && Object.keys(program).map((route) => program[route](app, `${kwargs.root}/${path_1.dirname(fname)}`)) && routes.add(path_1.dirname(fname));
-    kwargs.logger.info('Registered routes:', Array.from(routes.keys()).join('; '), ';');
-    kwargs.logger.warn('Failed registering models:', Array.from(norm.keys()).join('; '), ';');
+    kwargs.logger.info('Restify registered routes:\t', Array.from(routes.keys()), ';');
+    kwargs.logger.warn('Failed registering models:\t', Array.from(norm.keys()), ';');
     if (!kwargs.skip_redis) {
         kwargs.redis_cursors.redis = new Redis(kwargs.redis_config);
         kwargs.redis_cursors.redis.on('error', err => {
@@ -163,13 +149,13 @@ exports.strapFramework = (kwargs) => {
         sequelize: cb => sequelizeHandler(kwargs, app, sequelize_map, cb),
         typeorm: cb => typeormHandler(kwargs, typeorm_map, cb),
         waterline: cb => waterlineHandler(kwargs, app, waterline_set, cb),
-    }, (err, result) => {
+    }, (err, orms_out) => {
         if (err != null) {
             if (kwargs.callback)
                 return kwargs.callback(err);
             throw err;
         }
-        return handleStartApp(kwargs, app, (result.waterline || {}).connections, (result.waterline || {}).collections, result.typeorm, result.sequelize);
+        return handleStartApp(kwargs, app, orms_out);
     });
 };
 exports.add_to_body_mw = (...updates) => (req, res, next) => {
