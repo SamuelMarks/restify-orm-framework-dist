@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("reflect-metadata");
 const Logger = require("bunyan");
 const restify = require("restify");
-const redis = require("ioredis");
+const Redis = require("ioredis");
 const sequelize = require("sequelize");
 const typeorm = require("typeorm");
 const Waterline = require("waterline");
@@ -39,7 +39,7 @@ const handleStartApp = (skip_start_app, app, listen_port, onServerStart, logger,
 const redisHandler = (orm, logger, callback) => {
     if (orm.skip)
         return callback(void 0);
-    const cursor = new redis(orm.config);
+    const cursor = new Redis(orm.config);
     cursor.on('error', err => {
         logger.error(`Redis::error event - ${cursor['options']['host']}:${cursor['options']['port']} - ${err}`);
         logger.error(err);
@@ -54,7 +54,7 @@ const sequelizeHandler = (orm, logger, callback) => {
     if (orm.skip)
         return callback(void 0);
     logger.info('Sequelize initialising with:\t', Array.from(orm.map.keys()), ';');
-    const sequelize_obj = new sequelize.Sequelize(orm.uri, orm.config);
+    const sequelize_obj = new sequelize['Sequelize'](orm.uri, orm.config);
     const entities = new Map();
     for (const [entity, program] of orm.map)
         entities.set(entity, program(sequelize_obj));
@@ -97,7 +97,7 @@ const waterlineHandler = (orm, logger, callback) => {
 };
 exports.tearDownRedisConnection = (connection, done) => connection == null ? done(void 0) : done(connection.disconnect());
 exports.tearDownSequelizeConnection = (connection, done) => connection == null ? done(void 0) : done(connection.close());
-exports.tearDownTypeOrmConnection = (connection, done) => connection != null && connection.isConnected ? connection.close().then(_ => done()).catch(done) : done();
+exports.tearDownTypeOrmConnection = (connection, done) => connection == null || !connection.isConnected ? done(void 0) : connection.close().then(_ => done()).catch(done);
 exports.tearDownWaterlineConnection = (connections, done) => connections ? async_1.parallel(Object.keys(connections).map(connection => connections[connection]._adapter.teardown), () => {
     Object.keys(connections).forEach(connection => {
         if (['sails-tingo', 'waterline-nedb'].indexOf(connections[connection]._adapter.identity) < 0)
@@ -151,7 +151,7 @@ exports.strapFramework = (kwargs) => {
     const sequelize_map = new Map();
     const do_models = Object
         .keys(kwargs.orms_in)
-        .filter(orm => orm !== 'redis')
+        .filter(orm => orm !== 'Redis')
         .some(orm => kwargs.orms_in[orm].skip === false);
     if (!(kwargs.models_and_routes instanceof Map))
         kwargs.models_and_routes = nodejs_utils_1.model_route_to_map(kwargs.models_and_routes);
