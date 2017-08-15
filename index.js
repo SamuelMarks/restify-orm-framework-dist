@@ -60,7 +60,10 @@ const sequelizeHandler = (orm, logger, callback) => {
         entities.set(entity, program(sequelize_obj));
     sequelize_obj
         .authenticate()
-        .then(() => callback(void 0, { connection: sequelize_obj, entities }))
+        .then(() => async_1.map(Array.from(entities.keys()), (entity_name, cb) => sequelize_obj
+        .sync(entities.get(entity_name))
+        .then(_ => cb(void 0))
+        .catch(cb), err => callback(err, { connection: sequelize_obj, entities })))
         .catch(callback);
 };
 const typeormHandler = (orm, logger, callback) => {
