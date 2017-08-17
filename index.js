@@ -57,7 +57,7 @@ const sequelizeHandler = (orm, logger, callback) => {
     const sequelize_obj = new sequelize['Sequelize'](orm.uri, orm.config);
     const entities = new Map();
     for (const [entity, program] of orm.map)
-        entities.set(entity, program(sequelize_obj));
+        entities.set(entity, program(sequelize_obj, orm.map));
     sequelize_obj
         .authenticate()
         .then(() => async_1.map(Array.from(entities.keys()), (entity_name, cb) => sequelize_obj
